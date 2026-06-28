@@ -1,0 +1,108 @@
+services:
+
+  splunk:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    image: alessio-splunk-dbconnect:latest
+    container_name: splunk
+    hostname: splunk
+    restart: unless-stopped
+
+    environment:
+      SPLUNK_START_ARGS: --accept-license
+      SPLUNK_GENERAL_TERMS: --accept-sgt-current-at-splunk-com
+      SPLUNK_PASSWORD: ${SPLUNK_PASSWORD}
+      SPLUNK_ROLE: splunk_standalone
+      JAVA_HOME: /opt/java/openjdk
+
+    ports:
+      # Splunk Web interface
+      - "8000:8000"
+
+      # Splunk management and REST API
+      - "8089:8089"
+
+      # HTTP Event Collector
+      - "8088:8088"
+
+      # Receiving port for Universal Forwarders
+      - "9997:9997"
+
+    volumes:
+      # Splunk configuration, apps, users and knowledge objects
+      - splunk-etc:/opt/splunk/etc
+
+      # Splunk indexes, logs and runtime data
+      - splunk-var:/opt/splunk/var
+
+      # Optional folder for local sample files
+      - ./sample-data:/data/sample-data:ro
+
+    networks:
+      - splunk-lab
+
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - /opt/splunk/bin/splunk status >/dev/null 2>&1 || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 180s
+
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: sqlserver
+    hostname: sqlserver
+    restart: unless-stopped
+
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Developer"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+
+    ports:
+      # SQL Server access from your laptop
+      - "14330:1433"
+
+    volumes:
+      # Persistent SQL Server database files
+      - sqlserver-data:/var/opt/mssql
+
+      # Makes your initialization script available in the container
+      - ./sql:/scripts:ro
+
+    networks:
+      - splunk-lab
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -C -Q "SELECT 1" >/dev/null 2>&1 || exit 1
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 60s
+
+
+networks:
+  splunk-lab:
+    name: splunk-lab
+
+
+volumes:
+  splunk-etc:
+    name: splunk-etc
+
+  splunk-var:
+    name: splunk-var
+
+  sqlserver-data:
+    name: sqlserver-data

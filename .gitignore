@@ -1,0 +1,46 @@
+# Secrets and environment files
+.env
+.env.*
+!.env.example
+
+# Certificates, private keys and credentials
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# Splunk runtime data
+splunk-data/
+var/
+etc/auth/
+*.log
+
+# SQL Server/database runtime files
+*.mdf
+*.ndf
+*.ldf
+# sqlserver-data/
+
+# Docker overrides and temporary files
+docker-compose.override.yml
+*.tmp
+
+# VS Code
+.vscode/
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Microsoft Word/Excel/PowerPoint temporary files
+*.docx
+*.xlsx
+*.pptx
