@@ -367,7 +367,7 @@ Use the following connection settings:
 | Encrypt | Optional for this local lab |
 | Trust server certificate | Enabled |
 
-Depending on the client, `127.0.0.1,14330` can also be used.
+Depending on the client, `127.0.0.1\sqlserver,14330` can also be used.
 
 ### SQL Server from Splunk DB Connect
 
@@ -468,7 +468,7 @@ SELECT
     ResponseTimeMs,
     SourceIP,
     Message
-FROM [SplunkLab].[dbo].[vw_ApplicationEventsForSplunk]
+FROM "SplunkLab"."dbo"."vw_ApplicationEventsForSplunk"
 WHERE EventID > ?
 ORDER BY EventID;
 ```
