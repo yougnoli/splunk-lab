@@ -15,6 +15,7 @@ The lab runs Splunk and SQL Server in separate containers, connects them through
 - [Prerequisites](#prerequisites)
 - [Configuration](#configuration)
 - [First-time setup](#first-time-setup)
+- [Initialize the SQL Server lab database](#initialize-the-sql-server-lab-database)
 - [Daily start and stop](#daily-start-and-stop)
 - [Accessing the services](#accessing-the-services)
 - [Splunk DB Connect configuration](#splunk-db-connect-configuration)
@@ -285,6 +286,135 @@ Follow startup logs when needed:
 ```bash
 docker compose logs -f
 ```
+
+## Initialize the SQL Server lab database
+
+The SQL Server container starts the database engine, but it does **not** automatically execute `sql/init.sql`.
+
+The Compose file mounts the local `./sql` directory inside the SQL Server container at:
+
+```text
+/scripts
+```
+
+Therefore, the SQL initialization script is available inside the container as:
+
+```text
+/scripts/init.sql
+```
+
+> [!IMPORTANT]
+> Run this step after the SQL Server container reports `healthy`. This creates the `SplunkLab` database, sample tables and views, sample rows, and the read-only `splunk_reader` account used by DB Connect.
+
+First verify that the script exists on the host:
+
+```bash
+ls -la sql
+```
+
+You should see:
+
+```text
+init.sql
+```
+
+Then verify that Docker mounted it inside the container:
+
+```bash
+docker compose exec sqlserver ls -la /scripts
+```
+
+Run the initialization script:
+
+```bash
+docker compose exec sqlserver \
+  /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost \
+  -U sa \
+  -P "$MSSQL_SA_PASSWORD" \
+  -C \
+  -i /scripts/init.sql
+```
+
+If the shell variable is not loaded, use the password stored in `.env` directly:
+
+```bash
+docker compose exec sqlserver \
+  /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost \
+  -U sa \
+  -P 'SqlLab1234!Secure' \
+  -C \
+  -i /scripts/init.sql
+```
+
+Do **not** use:
+
+```text
+/sql/init.sql
+```
+
+That path does not exist in the container with the current Compose configuration. The correct path is:
+
+```text
+/scripts/init.sql
+```
+
+Verify that the database was created:
+
+```bash
+docker compose exec sqlserver \
+  /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost \
+  -U sa \
+  -P "$MSSQL_SA_PASSWORD" \
+  -C \
+  -Q "SELECT name FROM sys.databases WHERE name = 'SplunkLab';"
+```
+
+Verify the sample data:
+
+```bash
+docker compose exec sqlserver \
+  /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost \
+  -U sa \
+  -P "$MSSQL_SA_PASSWORD" \
+  -C \
+  -d SplunkLab \
+  -Q "SELECT COUNT(*) AS ApplicationEventCount FROM dbo.ApplicationEvents;"
+```
+
+Verify the read-only DB Connect account:
+
+```bash
+docker compose exec sqlserver \
+  /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost \
+  -U splunk_reader \
+  -P 'SplunkReader1234!' \
+  -C \
+  -d SplunkLab \
+  -Q "SELECT COUNT(*) AS ApplicationEventCount FROM dbo.ApplicationEvents;"
+```
+
+### When must this script be run again?
+
+You normally run `init.sql` only:
+
+- after the first creation of the SQL Server volume;
+- after `docker compose down --volumes`;
+- after deleting the `sqlserver-data` volume;
+- after intentionally resetting the SQL Server lab.
+
+You do **not** need to run it after a normal:
+
+```bash
+docker compose stop
+docker compose start
+```
+
+The `sqlserver-data` named volume preserves the database.
 
 ## Daily start and stop
 
@@ -621,6 +751,34 @@ docker compose start
 > For important SQL Server databases, native SQL Server `.bak` backups are preferable to relying only on a Docker volume archive.
 
 ## Troubleshooting
+
+### `sqlcmd` reports `Invalid filename`
+
+If this command fails:
+
+```bash
+-i /sql/init.sql
+```
+
+the path is wrong for this project.
+
+The Compose mount is:
+
+```yaml
+- ./sql:/scripts:ro
+```
+
+So use:
+
+```bash
+-i /scripts/init.sql
+```
+
+Confirm the mount with:
+
+```bash
+docker compose exec sqlserver ls -la /scripts
+```
 
 ### Containers do not become healthy
 
